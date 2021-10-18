@@ -1,0 +1,105 @@
+﻿using MarciSpotifyApi.Api.Interfaces;
+using MarciSpotifyApi.Api.Models;
+using MarciSpotifyApi.Configuration;
+using Microsoft.AspNetCore.Http.Extensions;
+using Microsoft.Extensions.Options;
+using System.Collections.Concurrent;
+using System.Net.Http;
+using System.Net.Http.Headers;
+
+namespace MarciSpotifyApi.Authorization
+{
+    public class SpotifyLoginService : ISpotifyLoginService
+    {
+        private readonly SpotifyCredentials spotifyCredentials;
+        private readonly SpotifySettings spotifySettings;
+
+        private static readonly ConcurrentDictionary<string, (string codeVerifier, string codeChallenge)>
+            httpContextUniqueData = new();
+        private static readonly Random random = new();
+
+        public SpotifyLoginService(
+            IOptions<SpotifyCredentials> credentials,
+            IOptions<SpotifySettings> settings)
+        {
+            spotifyCredentials = credentials.Value;
+            spotifySettings = settings.Value;
+        }
+
+        public string GetRedirectUrl()
+        {
+            var queryBuilder = new QueryBuilder
+            {
+                { "response_type", "code" },
+                { "client_id", spotifyCredentials.ClientId ?? string.Empty },
+                { "scope", "user-read-private" },
+                { "redirect_uri", spotifySettings.RedirectPath ?? string.Empty },
+                { "code_challenge_method", "S256" }
+            };
+
+            var state = GenerateRandomString(20);
+            var codeVerifier = GenerateRandomString(64);
+            var codeChallenge = ComputeSHA256String(codeVerifier);
+
+            httpContextUniqueData.GetOrAdd(state, (codeVerifier, codeChallenge));
+
+            queryBuilder.Add("code_challenge", codeChallenge);
+            queryBuilder.Add("state", state);
+
+            var url = $"{spotifySettings.SpotifyAuthorizeUrl}{queryBuilder.ToQueryString()}";
+
+            return url;
+        }
+
+        public async Task<string> GetAccessTokenQueryBodyUrlEncodedAsync(string code, string state)
+        {
+            var accessToken = "";
+
+            using (var client = new HttpClient())
+            {
+                if (string.IsNullOrEmpty(state))
+                {
+                    return await Task.FromException<string>(new UnauthorizedAccessException());
+                }
+
+                if (!httpContextUniqueData.TryGetValue(state, out var challenge))
+                {
+                    return await Task.FromException<string>(new UnauthorizedAccessException());
+                }
+
+                var codeVerifier = challenge.codeVerifier;
+                var codeChallenge = challenge.codeChallenge;
+
+                var content = new FormUrlEncodedContent(new[]
+                {
+                    new KeyValuePair<string, string>("code", code),
+                    new KeyValuePair<string, string>("client_id", spotifyCredentials.ClientId ?? string.Empty),
+                    new KeyValuePair<string, string>("redirect_uri", spotifySettings.RedirectPath ?? string.Empty),
+                    new KeyValuePair<string, string>("grant_type", "authorization_code"),
+                    new KeyValuePair<string, string>("code_verifier", codeVerifier)
+                });
+
+                var resultContent = await client.PostAsync(spotifySettings.SpotifyTokenAccessUrl, content);
+
+                var result = await resultContent.Content.ReadAsStringAsync();
+
+                accessToken = System.Text.Json.JsonSerializer.Deserialize<SpotifyAccessTokenResponse>(result)?.AccessToken;
+            }
+
+            return accessToken ?? string.Empty;
+        }
+
+        private static string GenerateRandomString(int length)
+        {
+            const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+            return new string(Enumerable.Repeat(chars, length)
+              .Select(s => s[random.Next(s.Length)]).ToArray());
+        }
+
+        private static string ComputeSHA256String(string source)
+            => Convert.ToBase64String(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(source)))
+            .TrimEnd('=')
+            .Replace('+', '-')
+            .Replace('/', '_');
+    }
+}
