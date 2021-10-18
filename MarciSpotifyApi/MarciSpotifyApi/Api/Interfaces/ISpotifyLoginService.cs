@@ -1,8 +1,7 @@
-﻿namespace MarciSpotifyApi.Api.Interfaces
+﻿namespace MarciSpotifyApi.Api.Interfaces;
+
+public interface ISpotifyLoginService
 {
-    public interface ISpotifyLoginService
-    {
-        Task<string> GetAccessTokenQueryBodyUrlEncodedAsync(string code, string state);
-        string GetRedirectUrl();
-    }
+    Task<string> GetAccessTokenQueryBodyUrlEncodedAsync(string code, string state);
+    string GetRedirectUrl();
 }

@@ -1,10 +1,8 @@
-﻿namespace MarciSpotifyApi.Configuration
-{
-    public class SpotifySettings
-    {
-        public string? RedirectPath { get; set; }
+﻿namespace MarciSpotifyApi.Configuration;
 
-        public string? SpotifyAuthorizeUrl { get; set; }
-        public string? SpotifyTokenAccessUrl { get; set; }
-    }
+public class SpotifySettings
+{
+    public string? RedirectPath { get; set; }
+    public string? SpotifyAuthorizeUrl { get; set; }
+    public string? SpotifyTokenAccessUrl { get; set; }
 }

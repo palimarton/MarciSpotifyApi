@@ -1,51 +1,39 @@
 ﻿using MarciSpotifyApi.Api.Interfaces;
-using MarciSpotifyApi.Api.Models;
 using Microsoft.AspNetCore.Mvc;
-using System.Net.Http.Headers;
 
-namespace MarciSpotifyApi.Controllers
+namespace MarciSpotifyApi.Controllers;
+
+[ApiController]
+[Route("api/[controller]/[action]")]
+public class SpotifyController
 {
-    [ApiController]
-    [Route("api/[controller]/[action]")]
-    public class SpotifyController
+    private readonly ISpotifyLoginService spotifyLoginService;
+
+    public SpotifyController(ISpotifyLoginService spotifyLoginService) 
+        => this.spotifyLoginService = spotifyLoginService;
+
+    [HttpGet]
+    public ActionResult HealthCheck() 
+        => new EmptyResult();
+
+    [HttpGet]
+    public ActionResult Login()
+        => new RedirectResult(spotifyLoginService.GetRedirectUrl());
+
+    [HttpGet]
+    public async Task<ActionResult> LoginCallback(string code, string state)
     {
-        private readonly ISpotifyLoginService spotifyLoginService;
+        var result = $"code: {code}\nstate: {state}";
 
-        public SpotifyController(ISpotifyLoginService spotifyLoginService)
+        if (!string.IsNullOrEmpty(code) && !string.IsNullOrEmpty(state))
         {
-            this.spotifyLoginService = spotifyLoginService;
+            var authToken = await spotifyLoginService.GetAccessTokenQueryBodyUrlEncodedAsync(code, state);
+            result = $"code: {code}\nstate: {state}\ntoken: {authToken}";
         }
 
-        [HttpGet]
-        public ActionResult HealthCheck()
+        return new ContentResult()
         {
-            return new EmptyResult();
-        }
-
-        [HttpGet]
-        public ActionResult Login()
-        {
-            // Redirect
-            var redirectUrl = spotifyLoginService.GetRedirectUrl();
-
-            return new RedirectResult(redirectUrl);
-        }
-
-        [HttpGet]
-        public async Task<ActionResult> LoginCallback(string code, string state)
-        {
-            var result = $"code: {code}\nstate: {state}";
-
-            if (!string.IsNullOrEmpty(code) && !string.IsNullOrEmpty(state))
-            {
-                var authToken = await spotifyLoginService.GetAccessTokenQueryBodyUrlEncodedAsync(code, state);
-                result = $"code: {code}\nstate: {state}\ntoken: {authToken}";
-            }
-
-            return new ContentResult()
-            {
-                Content = result
-            };
-        }
+            Content = result
+        };
     }
 }

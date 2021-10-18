@@ -1,8 +1,7 @@
-﻿namespace MarciSpotifyApi.Configuration
+﻿namespace MarciSpotifyApi.Configuration;
+
+public class SpotifyCredentials
 {
-    public class SpotifyCredentials
-    {
-        public string? ClientId { get; set; }
-        public string? ClientSecret { get; set; }
-    }
+    public string? ClientId { get; set; }
+    public string? ClientSecret { get; set; }
 }
